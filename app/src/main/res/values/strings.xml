@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">SerialSound</string>
+    <string name="usage">
+        Press a button on the interface above, then press the corresponding
+        button on the USB serial device. The next two messages received
+        over serial will be mapped to pressing and releasing the button,
+        respectively.
+    </string>
+    <string name="device_label">Device:</string>
+    <string name="baud_label">Baud rate:</string>
+    <string name="status_label">Status:</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="button_connect">Connect</string>
+    <string name="check_learn">Learn button mapping</string>
+    <string name="button_sharp">Shp</string>
+    <string name="button_flat">Flt</string>
+    <string name="button_octave_up">O+</string>
+    <string name="button_octave_down">O‒</string>
+    <string name="button_sustain">Stn</string>
+    <string name="button_nop">Nop</string>
+    <string name="button_refresh">Refresh</string>
+    <string name="check_awake">Keep screen awake</string>
+</resources>
