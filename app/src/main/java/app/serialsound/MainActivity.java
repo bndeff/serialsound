@@ -1,7 +1,10 @@
 package app.serialsound;
 
+import static android.app.PendingIntent.FLAG_IMMUTABLE;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatButton;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 
 import android.annotation.SuppressLint;
@@ -15,6 +18,7 @@ import android.content.res.ColorStateList;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -78,7 +82,7 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
     private UsbManager usbManager;
     private List<String> usbPorts;
     private Map<String, UsbSerialPort> usbPortMap;
-    private String[] baudList = new String[] {
+    private final String[] baudList = new String[] {
             "300", "1200", "2400", "4800", "9600", "19200", "38400", "57600", "74880",
             "115200", "230400", "250000", "500000", "1000000", "2000000"
     };
@@ -290,7 +294,7 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
                 learningButton = btn;
                 learningState = 1;
                 restoreColor = ViewCompat.getBackgroundTintList(btn);
-                int clr = getResources().getColor(R.color.colorWaitingPress);
+                int clr = ContextCompat.getColor(this, R.color.colorWaitingPress);
                 ViewCompat.setBackgroundTintList(btn, ColorStateList.valueOf(clr));
             }
             handleCommand(internalPress + tag);
@@ -306,14 +310,14 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
             case 1:
                 registerPressCommand(cmd, (String) learningButton.getTag());
                 pressString = cmd;
-                int clr = getResources().getColor(R.color.colorWaitingRelease);
+                int clr = ContextCompat.getColor(this, R.color.colorWaitingRelease);
                 ViewCompat.setBackgroundTintList(learningButton, ColorStateList.valueOf(clr));
                 learningState = 2;
                 handleCommand(cmd);
                 break;
             case 2:
                 if(!cmd.equals(pressString)) {
-                    registerReleaseCommand(cmd, pressString, (String) learningButton.getTag());
+                    registerReleaseCommand(cmd, pressString);
                     ViewCompat.setBackgroundTintList(learningButton, restoreColor);
                     learningState = 0;
                     learningButton = null;
@@ -384,7 +388,7 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
         playing.remove(cmd);
     }
 
-    private void registerReleaseCommand(String cmd, String pressCmd, String tag) {
+    private void registerReleaseCommand(String cmd, String pressCmd) {
         unregisterCommand(cmd, true);
         mapping.remove(cmd);     // these removes are superfluous, but let's be extra careful
         pair.put(pressCmd, cmd);
@@ -395,23 +399,20 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
 
     private void registerCommandPair(String pressCmd, String releaseCmd, String tag) {
         registerPressCommand(pressCmd, tag);
-        registerReleaseCommand(releaseCmd, pressCmd, tag);
+        registerReleaseCommand(releaseCmd, pressCmd);
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private void registerInternalButton(AppCompatButton btn, String tag) {
         registerCommandPair(internalPress + tag, internalRelease + tag, tag);
-        btn.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                int action = event.getAction();
-                if(action == MotionEvent.ACTION_DOWN) {
-                    handleInternalButton(v, true);
-                } else if(action == MotionEvent.ACTION_UP){
-                    handleInternalButton(v, false);
-                }
-                return true;
+        btn.setOnTouchListener((v, event) -> {
+            int action = event.getAction();
+            if(action == MotionEvent.ACTION_DOWN) {
+                handleInternalButton(v, true);
+            } else if(action == MotionEvent.ACTION_UP){
+                handleInternalButton(v, false);
             }
+            return true;
         });
     }
 
@@ -470,13 +471,13 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
         }
         connected = false;
         TextView statusText = findViewById(R.id.StatusText);
-        statusText.setText("Disconnected");
+        statusText.setText(R.string.status_disconnected);
         Spinner baudSpinner = findViewById(R.id.BaudSpinner);
         baudSpinner.setEnabled(true);
         AppCompatButton refreshButton = findViewById(R.id.RefreshButton);
         refreshButton.setEnabled(true);
         AppCompatButton connectButton = findViewById(R.id.ConnectButton);
-        connectButton.setText("Connect");
+        connectButton.setText(R.string.button_connect);
         refreshDeviceList();
     }
 
@@ -491,7 +492,7 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
         if(savedBaudRate == baudRate) return;
         SharedPreferences.Editor spe = sp.edit();
         spe.putInt("baudrate", baudRate);
-        spe.commit();
+        spe.apply();
     }
 
     private void connectToDevice(Boolean askForPermission) {
@@ -509,7 +510,12 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
             if(!usbManager.hasPermission(dev)) {
                 if(askForPermission) {
                     registerReceiver(broadcastReceiver, new IntentFilter(INTENT_ACTION_GRANT_USB));
-                    PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
+                    int flags = 0;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        flags |= FLAG_IMMUTABLE;
+                    }
+                    PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(this,
+                            0, new Intent(INTENT_ACTION_GRANT_USB), flags);
                     usbManager.requestPermission(dev, usbPermissionIntent);
                 } else {
                     Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show();
@@ -531,13 +537,13 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
         }
         connected = true;
         TextView statusText = findViewById(R.id.StatusText);
-        statusText.setText("Connected");
+        statusText.setText(R.string.status_connected);
         deviceSpinner.setEnabled(false);
         baudSpinner.setEnabled(false);
         AppCompatButton refreshButton = findViewById(R.id.RefreshButton);
         refreshButton.setEnabled(false);
         AppCompatButton connectButton = findViewById(R.id.ConnectButton);
-        connectButton.setText("Disconnect");
+        connectButton.setText(R.string.button_disconnect);
     }
 
     private void saveMapping() {
@@ -634,10 +640,9 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
                 boolean hl = midiNote >= 60 && midiNote <= 72;
                 if(noteChar != '.') {
                     btn.setText(String.format(Locale.ROOT, "%c%d", noteChar, octave));
-                    //btn.setText(String.format(Locale.ROOT, "%c", noteChar));
-                    clr = getResources().getColor(hl ? R.color.colorWhiteHighlight : R.color.colorWhiteKey);
+                    clr = ContextCompat.getColor(this, hl ? R.color.colorWhiteHighlight : R.color.colorWhiteKey);
                 } else {
-                    clr = getResources().getColor(hl ? R.color.colorBlackHighlight : R.color.colorBlackKey);
+                    clr = ContextCompat.getColor(this, hl ? R.color.colorBlackHighlight : R.color.colorBlackKey);
                 }
                 ViewCompat.setBackgroundTintList(btn, ColorStateList.valueOf(clr));
                 String tag = String.valueOf(midiNote);
@@ -648,7 +653,7 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
             tl.addView(tr);
         }
 
-        int clr = getResources().getColor(R.color.colorDefaultButton);
+        int clr = ContextCompat.getColor(this, R.color.colorDefaultButton);
         ColorStateList defaultTint = ColorStateList.valueOf(clr);
         LinearLayout mb = findViewById(R.id.ModifierButtons);
         int mbCount = mb.getChildCount();
@@ -673,53 +678,39 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
 
         AppCompatButton refreshButton = findViewById(R.id.RefreshButton);
         //ViewCompat.setBackgroundTintList(refreshButton, defaultTint);
-        refreshButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                refreshDeviceList();
-            }
-        });
+        refreshButton.setOnClickListener(v -> refreshDeviceList());
         refreshDeviceList();
 
         AppCompatButton connectButton = findViewById(R.id.ConnectButton);
         //ViewCompat.setBackgroundTintList(connectButton, defaultTint);
-        connectButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(connected) {
-                    disconnectFromDevice();
-                } else {
-                    connectToDevice(true);
-                }
+        connectButton.setOnClickListener(v -> {
+            if(connected) {
+                disconnectFromDevice();
+            } else {
+                connectToDevice(true);
             }
         });
 
         CheckBox learnCheckbox = findViewById(R.id.LearnCheckbox);
-        learnCheckbox.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                CheckBox cb = (CheckBox) v;
-                boolean newState = cb.isChecked();
-                if(!newState && learningState > 0) {
-                    stopUnfinishedLearning();
-                }
-                TextView usageText = findViewById(R.id.UsageText);
-                usageText.setVisibility(newState ? View.VISIBLE : View.GONE);
+        learnCheckbox.setOnClickListener(v -> {
+            CheckBox cb = (CheckBox) v;
+            boolean newState = cb.isChecked();
+            if(!newState && learningState > 0) {
+                stopUnfinishedLearning();
             }
+            TextView usageText = findViewById(R.id.UsageText);
+            usageText.setVisibility(newState ? View.VISIBLE : View.GONE);
         });
         TextView usageText = findViewById(R.id.UsageText);
         usageText.setVisibility(View.GONE);
 
         CheckBox awakeCheckbox = findViewById(R.id.AwakeCheckbox);
-        awakeCheckbox.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                CheckBox cb = (CheckBox) v;
-                if(cb.isChecked()) {
-                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                } else {
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
+        awakeCheckbox.setOnClickListener(v -> {
+            CheckBox cb = (CheckBox) v;
+            if(cb.isChecked()) {
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
         });
 
@@ -740,30 +731,17 @@ public class MainActivity extends AppCompatActivity implements SerialInputOutput
 
     @Override
     public void onNewData(final byte[] data) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.processSerialData(data);
-            }
-        });
+        runOnUiThread(() -> MainActivity.this.processSerialData(data));
     }
 
     @Override
     public void onRunError(Exception e) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if(connected) {
-                    Toast.makeText(MainActivity.this, "Connection lost", Toast.LENGTH_SHORT).show();
-                    disconnectFromDevice();
-                }
+        runOnUiThread(() -> {
+            if(connected) {
+                Toast.makeText(MainActivity.this, "Connection lost", Toast.LENGTH_SHORT).show();
+                disconnectFromDevice();
             }
         });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
     }
 
     @Override
